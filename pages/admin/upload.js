@@ -21,7 +21,7 @@ function isValidUrl(str) {
   try { new URL(str); return true } catch (_) { return false }
 }
 
-const emptyEntry = () => ({ id: Date.now() + Math.random(), url: '', type: 'image', title: '' })
+const emptyEntry = () => ({ id: Date.now() + Math.random(), url: '', file: null, type: 'image', title: '' })
 
 export default function AdminUpload() {
   const { addItem } = useGallery()
@@ -42,8 +42,16 @@ export default function AdminUpload() {
     setEntries(prev => prev.map(e => {
       if (e.id !== id) return e
       const updated = { ...e, [field]: value }
-      // Auto-detect type when URL changes
-      if (field === 'url' && value) updated.type = detectType(value)
+      
+      // Auto-detect type
+      if (field === 'url' && value) {
+        updated.type = detectType(value)
+      } else if (field === 'file' && value) {
+        // Detect type from file extension
+        const filename = value.name.toLowerCase()
+        updated.type = /\.(mp4|mov|webm|avi|mkv|m4v)$/.test(filename) ? 'video' : 'image'
+      }
+      
       return updated
     }))
   }
@@ -53,10 +61,10 @@ export default function AdminUpload() {
     ev.preventDefault()
     const errs = []
 
-    const validEntries = entries.filter(e => e.url.trim())
-    if (validEntries.length === 0) errs.push('Add at least one media URL.')
+    const validEntries = entries.filter(e => e.url.trim() || e.file)
+    if (validEntries.length === 0) errs.push('Add at least one media file or URL.')
     validEntries.forEach((e, i) => {
-      if (!isValidUrl(e.url.trim())) errs.push(`Entry ${i + 1}: "${e.url}" is not a valid URL.`)
+      if (e.url && !isValidUrl(e.url.trim())) errs.push(`Entry ${i + 1}: "${e.url}" is not a valid URL.`)
       if (!e.title.trim()) errs.push(`Entry ${i + 1}: title is required.`)
     })
     if (!form.category) errs.push('Category is required.')
@@ -77,6 +85,7 @@ export default function AdminUpload() {
           location: form.location.trim(),
           desc:     form.desc.trim(),
           src:      entry.url.trim(),
+          file:     entry.file,
         })
       }
       setSuccess(true)
@@ -103,10 +112,10 @@ export default function AdminUpload() {
             <CheckCircle className="w-12 h-12 text-green-500" />
           </div>
           <h2 className="font-display text-2xl font-bold text-slate-900 mb-3">Published!</h2>
-          <p className="text-slate-500 mb-8">
-            {entries.filter(e => e.url.trim()).length} item
-            {entries.filter(e => e.url.trim()).length > 1 ? 's' : ''} saved to Firestore and live on the gallery.
-          </p>
+            <p className="text-slate-500 mb-8">
+              {entries.filter(e => e.url.trim() || e.file).length} item
+              {entries.filter(e => e.url.trim() || e.file).length > 1 ? 's' : ''} saved to Firestore and live on the gallery.
+            </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button onClick={handleReset}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-indigo-700 text-white px-6 py-3 rounded-xl font-semibold text-sm">
@@ -161,18 +170,50 @@ export default function AdminUpload() {
               {entries.map((entry, idx) => (
                 <div key={entry.id} className="group grid grid-cols-1 sm:grid-cols-[1fr_160px_36px] gap-3 items-start">
 
-                  {/* URL + title stacked */}
+                  {/* URL + File + title stacked */}
                   <div className="space-y-2">
-                    <div className="relative">
-                      <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="url"
-                        value={entry.url}
-                        onChange={e => updateEntry(entry.id, 'url', e.target.value)}
-                        placeholder="https://firebasestorage.googleapis.com/…"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition placeholder:text-slate-300"
-                      />
+                    {/* File upload */}
+                    <div className="flex gap-2">
+                      <label className="flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm font-medium cursor-pointer hover:bg-primary-50 hover:border-primary-300 transition-colors">
+                        <Upload className="w-4 h-4 mr-2" />
+                        {entry.file ? entry.file.name : 'Choose File'}
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              updateEntry(entry.id, 'file', e.target.files[0])
+                              updateEntry(entry.id, 'url', '') // Clear URL if file is chosen
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {entry.file && (
+                        <button
+                          type="button"
+                          onClick={() => updateEntry(entry.id, 'file', null)}
+                          className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+
+                    {/* URL input (only if no file selected) */}
+                    {!entry.file && (
+                      <div className="relative">
+                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="url"
+                          value={entry.url}
+                          onChange={e => updateEntry(entry.id, 'url', e.target.value)}
+                          placeholder="https://firebasestorage.googleapis.com/…"
+                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition placeholder:text-slate-300"
+                        />
+                      </div>
+                    )}
+
                     <input
                       type="text"
                       value={entry.title}
@@ -215,12 +256,12 @@ export default function AdminUpload() {
                     <Trash2 className="w-4 h-4" />
                   </button>
 
-                  {/* Live URL preview thumbnail */}
-                  {entry.url && isValidUrl(entry.url) && (
+                  {/* Live preview */}
+                  {((entry.url && isValidUrl(entry.url)) || entry.file) && (
                     <div className="sm:col-span-3">
                       {entry.type === 'image' ? (
                         <img
-                          src={entry.url}
+                          src={entry.file ? URL.createObjectURL(entry.file) : entry.url}
                           alt="preview"
                           className="h-20 rounded-xl object-cover border border-slate-200 bg-slate-100"
                           onError={ev => ev.target.style.display = 'none'}
@@ -228,10 +269,12 @@ export default function AdminUpload() {
                       ) : (
                         <div className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
                           <Film className="w-4 h-4" />
-                          Video URL set
-                          <a href={entry.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                          {entry.file ? 'Video file selected' : 'Video URL set'}
+                          {entry.url && !entry.file && (
+                            <a href={entry.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -324,7 +367,7 @@ export default function AdminUpload() {
                 Clear All
               </button>
             )}
-            <p className="text-xs text-slate-400 sm:ml-auto">URLs + metadata saved to Firestore · visible instantly</p>
+            <p className="text-xs text-slate-400 sm:ml-auto">Files uploaded to Storage & saved to Firestore · visible instantly</p>
           </div>
         </form>
       </div>

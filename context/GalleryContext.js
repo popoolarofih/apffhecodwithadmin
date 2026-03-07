@@ -3,7 +3,8 @@ import {
   collection, onSnapshot, addDoc, deleteDoc,
   updateDoc, doc, serverTimestamp, query, orderBy,
 } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '../lib/firebase'
 
 const COLLECTION = 'gallery'
 
@@ -39,21 +40,70 @@ export function GalleryProvider({ children }) {
     return () => unsub()
   }, [])
 
-  // Add — src is a plain URL string (Firebase Storage public link, etc.)
+  // Upload file to Firebase Storage and get download URL
+  const uploadFile = async (file) => {
+    const storageRef = ref(storage, `gallery/${Date.now()}-${file.name}`)
+    const uploadTask = uploadBytesResumable(storageRef, file)
+
+    return new Promise((resolve, reject) => {
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          // Progress monitoring could be added here
+        },
+        (error) => {
+          reject(error)
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          resolve(downloadURL)
+        }
+      )
+    })
+  }
+
+  // Detect file type from file extension
+  const getFileType = (filename) => {
+    const ext = filename.toLowerCase().split('.').pop()
+    const videoExtensions = ['mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v']
+    return videoExtensions.includes(ext) ? 'video' : 'image'
+  }
+
+  // Add — supports both file upload and URL
   const addItem = async (item) => {
+    let src = item.src || ''
+    
+    // If item.file exists, upload it to storage
+    if (item.file) {
+      src = await uploadFile(item.file)
+    }
+
+    // Determine type if not provided
+    let type = item.type
+    if (!type) {
+      if (item.file) {
+        type = getFileType(item.file.name)
+      } else if (src) {
+        const url = src.toLowerCase().split('?')[0]
+        type = /\.(mp4|mov|webm|avi|mkv|m4v)$/.test(url) ? 'video' : 'image'
+      } else {
+        type = 'image' // default
+      }
+    }
+
     const payload = {
-      type:       item.type || 'image',
+      type:       type,
       title:      item.title,
       category:   item.category,
       date:       item.date,
       location:   item.location || '',
       desc:       item.desc    || '',
-      src:        item.src     || '',   // ← just a URL
+      src:        src,
       color:      categoryColors[item.category] || 'from-primary-500 to-indigo-600',
       uploadedAt: serverTimestamp(),
     }
-    const ref = await addDoc(collection(db, COLLECTION), payload)
-    return { id: ref.id, ...payload }
+
+    const docRef = await addDoc(collection(db, COLLECTION), payload)
+    return { id: docRef.id, ...payload }
   }
 
   const deleteItem = async (id) => {
