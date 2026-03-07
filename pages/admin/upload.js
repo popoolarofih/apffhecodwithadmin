@@ -126,26 +126,7 @@ export default function AdminUpload() {
     <AdminLayout title="Upload Media">
       <div className="max-w-3xl mx-auto">
 
-        {/* Info banner */}
-        <div className="flex items-start gap-3 bg-primary-50 border border-primary-200 rounded-2xl p-4 mb-6">
-          <Info className="w-4 h-4 text-primary-600 flex-shrink-0 mt-0.5" />
-          <div className="text-primary-700 text-sm space-y-1">
-            <p className="font-semibold">How this works</p>
-            <p>
-              Upload your files to <strong>Firebase Storage</strong> (or any hosting), copy the public URL,
-              then paste it below. The URL and metadata are saved to <strong>Firestore</strong> and appear
-              on the public gallery immediately.
-            </p>
-            <a
-              href="https://console.firebase.google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-primary-600 font-semibold hover:underline text-xs mt-1"
-            >
-              Open Firebase Console <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        </div>
+
 
         {/* Errors */}
         {errors.length > 0 && (
