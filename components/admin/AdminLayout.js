@@ -4,14 +4,14 @@ import { useAuth } from '../../context/AuthContext'
 import { useGallery } from '../../context/GalleryContext'
 import { useEffect } from 'react'
 import {
-  HeartHandshake, LayoutDashboard, Images, Upload,
+  HeartHandshake, LayoutDashboard, Grid, Upload,
   LogOut, ExternalLink, Menu, X, Bell
 } from 'lucide-react'
 import { useState } from 'react'
 
 const navItems = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Gallery', href: '/admin/gallery', icon: Images },
+  { label: 'Gallery', href: '/admin/gallery', icon: Grid },
   { label: 'Upload Media', href: '/admin/upload', icon: Upload },
 ]
 

@@ -2,7 +2,7 @@ import AdminLayout from '../../components/admin/AdminLayout'
 import Link from 'next/link'
 import { useGallery } from '../../context/GalleryContext'
 import {
-  Images, Upload, Film, Image, TrendingUp,
+  Grid, Upload, Film, Image, TrendingUp,
   ArrowRight, Calendar, Clock, CheckCircle
 } from 'lucide-react'
 
@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     {
       label: 'Total Media',
       value: items.length,
-      icon: Images,
+      icon: Grid,
       color: 'from-primary-500 to-indigo-600',
       bg: 'bg-primary-50',
       iconColor: 'text-primary-600',
@@ -187,11 +187,11 @@ export default function AdminDashboard() {
 
       {/* Quick actions */}
       <div className="grid sm:grid-cols-3 gap-5 mt-6">
-        {[
-          { title: 'Upload New Media', desc: 'Add images or videos to the gallery', href: '/admin/upload', icon: Upload, color: 'from-primary-600 to-indigo-700', featured: true },
-          { title: 'Manage Gallery', desc: 'Edit, delete, or reorder existing media', href: '/admin/gallery', icon: Images, color: '' },
-          { title: 'View Public Site', desc: 'See how the gallery looks to visitors', href: '/activities', icon: CheckCircle, color: '', external: true },
-        ].map((action, i) => (
+          {[
+            { title: 'Upload New Media', desc: 'Add images or videos to the gallery', href: '/admin/upload', icon: Upload, color: 'from-primary-600 to-indigo-700', featured: true },
+            { title: 'Manage Gallery', desc: 'Edit, delete, or reorder existing media', href: '/admin/gallery', icon: Grid, color: '' },
+            { title: 'View Public Site', desc: 'See how the gallery looks to visitors', href: '/activities', icon: CheckCircle, color: '', external: true },
+          ].map((action, i) => (
           <Link
             key={i}
             href={action.href}
