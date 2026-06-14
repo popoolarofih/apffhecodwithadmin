@@ -12,7 +12,10 @@ export default function AdminDashboard() {
   const imageCount = items.filter(i => i.type === 'image').length
   const videoCount = items.filter(i => i.type === 'video').length
   const categories = [...new Set(items.map(i => i.category))]
-  const recent = [...items].sort((a, b) => b.uploadedAt?.localeCompare(a.uploadedAt)).slice(0, 5)
+  const recent = [...items].sort((a, b) => {
+    const toMs = (t) => t?.toMillis?.() ?? t?.seconds * 1000 ?? 0
+    return toMs(b.uploadedAt) - toMs(a.uploadedAt)
+  }).slice(0, 5)
 
   const stats = [
     {
