@@ -1,10 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import {
-  collection, onSnapshot, addDoc, deleteDoc,
-  updateDoc, doc, serverTimestamp, query, orderBy,
+  collection, onSnapshot, query, orderBy,
 } from 'firebase/firestore'
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '../lib/firebase'
+import { db } from '../lib/firebase'
 
 const COLLECTION = 'gallery'
 
@@ -15,6 +13,30 @@ export const categoryColors = {
   'Intervention':       'from-primary-500 to-indigo-600',
 }
 
+// ── API helper — all writes go through /api/gallery (Admin SDK) ───────────────
+async function galleryApi(method, body) {
+  const secret = process.env.NEXT_PUBLIC_ADMIN_API_SECRET
+  if (!secret) throw new Error('NEXT_PUBLIC_ADMIN_API_SECRET is not configured.')
+
+  let init = {
+    method,
+    headers: { 'x-admin-secret': secret },
+  }
+
+  if (body instanceof FormData) {
+    // multipart — browser sets Content-Type with boundary automatically
+    init.body = body
+  } else {
+    init.headers['Content-Type'] = 'application/json'
+    init.body = JSON.stringify(body)
+  }
+
+  const res = await fetch('/api/gallery', init)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || `API error ${res.status}`)
+  return data
+}
+
 const GalleryContext = createContext(null)
 
 export function GalleryProvider({ children }) {
@@ -22,7 +44,7 @@ export function GalleryProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
-  // Real-time Firestore listener — updates everywhere instantly
+  // ── Real-time Firestore listener (read-only client SDK) ───────────────────
   useEffect(() => {
     const q = query(collection(db, COLLECTION), orderBy('uploadedAt', 'desc'))
     const unsub = onSnapshot(
@@ -40,81 +62,40 @@ export function GalleryProvider({ children }) {
     return () => unsub()
   }, [])
 
-  // Upload file to Firebase Storage and get download URL
-  const uploadFile = async (file) => {
-    const storageRef = ref(storage, `gallery/${Date.now()}-${file.name}`)
-    const uploadTask = uploadBytesResumable(storageRef, file)
+  // ── Add — supports file upload or plain URL ───────────────────────────────
+  const addItem = async (item) => {
+    if (item.file) {
+      // Multipart upload: let the API route handle Storage
+      const fd = new FormData()
+      fd.append('file',     item.file)
+      fd.append('title',    item.title    || '')
+      fd.append('category', item.category || '')
+      fd.append('date',     item.date     || '')
+      fd.append('location', item.location || '')
+      fd.append('desc',     item.desc     || '')
+      return galleryApi('POST', fd)
+    }
 
-    return new Promise((resolve, reject) => {
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          // Progress monitoring could be added here
-        },
-        (error) => {
-          reject(error)
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          resolve(downloadURL)
-        }
-      )
+    // URL-only path
+    return galleryApi('POST', {
+      type:     item.type,
+      title:    item.title,
+      category: item.category,
+      date:     item.date,
+      location: item.location || '',
+      desc:     item.desc     || '',
+      src:      item.src      || '',
     })
   }
 
-  // Detect file type from file extension
-  const getFileType = (filename) => {
-    const ext = filename.toLowerCase().split('.').pop()
-    const videoExtensions = ['mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v']
-    return videoExtensions.includes(ext) ? 'video' : 'image'
-  }
-
-  // Add — supports both file upload and URL
-  const addItem = async (item) => {
-    let src = item.src || ''
-    
-    // If item.file exists, upload it to storage
-    if (item.file) {
-      src = await uploadFile(item.file)
-    }
-
-    // Determine type if not provided
-    let type = item.type
-    if (!type) {
-      if (item.file) {
-        type = getFileType(item.file.name)
-      } else if (src) {
-        const url = src.toLowerCase().split('?')[0]
-        type = /\.(mp4|mov|webm|avi|mkv|m4v)$/.test(url) ? 'video' : 'image'
-      } else {
-        type = 'image' // default
-      }
-    }
-
-    const payload = {
-      type:       type,
-      title:      item.title,
-      category:   item.category,
-      date:       item.date,
-      location:   item.location || '',
-      desc:       item.desc    || '',
-      src:        src,
-      color:      categoryColors[item.category] || 'from-primary-500 to-indigo-600',
-      uploadedAt: serverTimestamp(),
-    }
-
-    const docRef = await addDoc(collection(db, COLLECTION), payload)
-    return { id: docRef.id, ...payload }
-  }
-
+  // ── Delete ────────────────────────────────────────────────────────────────
   const deleteItem = async (id) => {
-    await deleteDoc(doc(db, COLLECTION, id))
+    return galleryApi('DELETE', { id })
   }
 
+  // ── Update ────────────────────────────────────────────────────────────────
   const updateItem = async (id, updates) => {
-    if (updates.category) {
-      updates.color = categoryColors[updates.category] || 'from-primary-500 to-indigo-600'
-    }
-    await updateDoc(doc(db, COLLECTION, id), updates)
+    return galleryApi('PATCH', { id, ...updates })
   }
 
   return (
